@@ -1,0 +1,10 @@
+{
+  "description": "Local DNS Traffic",
+  "capture_point": "local-macbook",
+  "networks": [
+    {"cidr": "10.21.0.0/16", "role": "pod_network"},
+    {"cidr": "172.16.0.0/16", "role": "node_network"}
+  ],
+  "known_hosts": [{"ip": "1.1.1.1", "name": "public-dns"}],
+  "question": "DNS trafigimdeki bazen resolve oluyor bazen olmuyor"
+}

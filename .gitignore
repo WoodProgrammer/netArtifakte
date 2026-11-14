@@ -1,0 +1,32 @@
+# --- runtime data: SQLite DB, uploaded pcaps, LLM results
+data/
+
+# --- credentials / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials*.json
+secrets/
+
+# --- packet captures (may contain sensitive network traffic)
+*.pcap
+*.pcapng
+*.cap
+
+# --- python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

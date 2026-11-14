@@ -1,0 +1,24 @@
+services:
+  pcap-analyzer:
+    build: .
+    image: pcap-analyzer:latest
+    container_name: pcap-analyzer
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    # Secrets (ANTHROPIC_API_KEY, ...) live in .env, which is git-ignored. See .env.example.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+      WORKER_COUNT: ${WORKER_COUNT:-2}
+      REPORT_LANGUAGE: ${REPORT_LANGUAGE:-English}
+      # Local LLM running on the host (Ollama, LM Studio, ...): reachable via host.docker.internal
+      LOCAL_LLM_URL: ${LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # needed on Linux; Docker Desktop provides it already
+    volumes:
+      # SQLite DB + uploaded pcaps. Bind-mounted so the existing ./data is reused.
+      # On Linux the directory must be writable by uid 1000 (the container user).
+      - ./data:/data

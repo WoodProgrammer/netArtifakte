@@ -1,0 +1,27 @@
+# Keep the build context small and never bake data or secrets into the image.
+data/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials*.json
+secrets/
+*.pcap
+*.pcapng
+*.cap
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+.DS_Store
+.idea/
+.vscode/
+README.md
+samples/
+metadata.json
