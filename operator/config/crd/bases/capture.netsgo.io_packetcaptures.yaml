@@ -1,0 +1,411 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: packetcaptures.capture.netsgo.io
+spec:
+  group: capture.netsgo.io
+  names:
+    kind: PacketCapture
+    listKind: PacketCaptureList
+    plural: packetcaptures
+    shortNames:
+    - pcap
+    singular: packetcapture
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.mode
+      name: Mode
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .spec.analysis.analysisId
+      name: Analysis
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PacketCapture captures traffic of pods or nodes and sends the
+          pcaps to pcap-analyzer.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of PacketCapture
+            properties:
+              analysis:
+                description: analysis is the pcap-analyzer destination.
+                properties:
+                  analysisId:
+                    description: analysisId is the pcap-analyzer analysis the runs
+                      are submitted to.
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  comparePrevious:
+                    default: true
+                    description: comparePrevious gives earlier runs of the same analysis
+                      to the LLM as context.
+                    type: boolean
+                  description:
+                    description: description of the capture, passed to the LLM as
+                      context.
+                    type: string
+                  dryRun:
+                    description: dryRun skips the LLM; only zeek/tshark parsing is
+                      done.
+                    type: boolean
+                  provider:
+                    default: claude
+                    description: provider is the LLM used by pcap-analyzer.
+                    enum:
+                    - claude
+                    - local
+                    type: string
+                  question:
+                    description: question for the LLM (the analysis's main question
+                      for this capture).
+                    minLength: 1
+                    type: string
+                required:
+                - analysisId
+                - question
+                type: object
+              duration:
+                default: 60s
+                description: duration of the capture.
+                type: string
+              filter:
+                description: filter is a tcpdump/BPF filter expression, e.g. "port
+                  53".
+                maxLength: 1024
+                type: string
+              maxSizeMB:
+                default: 100
+                description: maxSizeMB stops the capture early when the pcap reaches
+                  this size.
+                format: int32
+                maximum: 500
+                minimum: 1
+                type: integer
+              mode:
+                default: Pod
+                description: 'mode: Pod (inside the pod network namespace) or Node
+                  (on a node interface).'
+                enum:
+                - Pod
+                - Node
+                type: string
+              node:
+                description: node target; required when mode is Node.
+                properties:
+                  interface:
+                    description: |-
+                      interface on the node. Empty = the interface of the default route. "any" captures every
+                      interface (beware: pod traffic is then seen several times — veth, bridge, uplink).
+                    type: string
+                  maxNodes:
+                    default: 3
+                    description: maxNodes caps how many matching nodes are captured
+                      (sorted by name).
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  nodeNames:
+                    description: nodeNames lists nodes explicitly.
+                    items:
+                      type: string
+                    type: array
+                  selector:
+                    description: selector matches nodes by label.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
+              pod:
+                description: pod target; required when mode is Pod.
+                properties:
+                  interface:
+                    description: interface inside the pod network namespace. Empty
+                      = the interface that holds the pod IP.
+                    type: string
+                  maxPods:
+                    default: 5
+                    description: maxPods caps how many matching pods are captured
+                      (running pods, sorted by name).
+                    format: int32
+                    maximum: 20
+                    minimum: 1
+                    type: integer
+                  selector:
+                    description: selector matches pods in the same namespace as the
+                      PacketCapture.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                required:
+                - selector
+                type: object
+              snapLen:
+                description: snapLen is the bytes captured per packet (0 = full packet).
+                format: int32
+                minimum: 0
+                type: integer
+            required:
+            - analysis
+            type: object
+            x-kubernetes-validations:
+            - message: spec.pod is required when mode is Pod
+              rule: self.mode != 'Pod' || has(self.pod)
+            - message: spec.node is required when mode is Node
+              rule: self.mode != 'Node' || has(self.node)
+            - message: spec is immutable; create a new PacketCapture
+              rule: self == oldSelf
+          status:
+            description: status defines the observed state of PacketCapture
+            properties:
+              completionTime:
+                format: date-time
+                type: string
+              conditions:
+                description: 'conditions: "Ready" is True once every target is finished.'
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              message:
+                description: message for the overall state.
+                type: string
+              phase:
+                description: phase is the overall state.
+                enum:
+                - Pending
+                - Capturing
+                - Analyzing
+                - Completed
+                - PartiallyFailed
+                - Failed
+                type: string
+              startTime:
+                description: startTime / completionTime of the whole capture.
+                format: date-time
+                type: string
+              targets:
+                description: targets lists every captured pod / node, fixed when the
+                  capture starts.
+                items:
+                  description: TargetStatus is the state of one captured pod or node.
+                  properties:
+                    ip:
+                      description: ip of the pod (Pod mode).
+                      type: string
+                    jobName:
+                      description: jobName of the capture job (in the operator namespace).
+                      type: string
+                    message:
+                      description: message explains failures.
+                      type: string
+                    name:
+                      description: name of the pod (Pod mode) or node (Node mode).
+                      type: string
+                    nodeName:
+                      description: nodeName the capture job runs on.
+                      type: string
+                    pendingApprovals:
+                      description: 'pendingApprovals: commands Claude proposed that
+                        wait for approval in pcap-analyzer.'
+                      format: int32
+                      type: integer
+                    phase:
+                      description: phase of this target.
+                      type: string
+                    resultURL:
+                      description: resultURL points to the run in pcap-analyzer.
+                      type: string
+                    runId:
+                      description: runId in pcap-analyzer, set once the pcap was uploaded.
+                      format: int64
+                      type: integer
+                    runProgress:
+                      format: int32
+                      type: integer
+                    runStage:
+                      type: string
+                    runStatus:
+                      description: runStatus / runStage / runProgress mirror pcap-analyzer's
+                        run state.
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

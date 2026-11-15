@@ -1,0 +1,45 @@
+# Pod mode: capture inside the network namespace of each matching pod (the pod's own view).
+apiVersion: capture.netsgo.io/v1alpha1
+kind: PacketCapture
+metadata:
+  labels:
+    app.kubernetes.io/name: pcap-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: dns-issue-pods
+spec:
+  mode: Pod
+  pod:
+    selector:
+      matchLabels:
+        app: my-app
+    maxPods: 2
+  filter: "port 53"
+  duration: 60s
+  maxSizeMB: 50
+  analysis:
+    analysisId: 1
+    provider: claude
+    description: "my-app pods sometimes fail to resolve external names"
+    question: "DNS sorguları bazen resolve oluyor bazen olmuyor, neden?"
+---
+# Node mode: capture on a node interface (host netns). Only allowed in --node-capture-namespaces
+# (default: the operator namespace).
+apiVersion: capture.netsgo.io/v1alpha1
+kind: PacketCapture
+metadata:
+  labels:
+    app.kubernetes.io/name: pcap-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: node-traffic
+  namespace: pcap-operator-system
+spec:
+  mode: Node
+  node:
+    nodeNames: ["worker-1"]
+    # interface: eth0     # default: the default-route interface
+  filter: "not port 22"
+  duration: 30s
+  analysis:
+    analysisId: 1
+    dryRun: true
+    question: "Node'lar arası trafikte retransmission / reset var mı?"
