@@ -130,6 +130,155 @@ def _dns_stats(dns: list[dict], meta: CaptureMeta) -> dict:
     }
 
 
+MAX_STR_LEN = 200
+MAX_NOTICE_ITEMS = 100
+SMALL_TOP_N = 5
+
+
+def _str(v, default: str = "-") -> str:
+    """Safe, truncated string for odd zeek field values (None, lists, numbers...)."""
+    if v is None or v == "":
+        return default
+    s = v if isinstance(v, str) else json.dumps(v) if isinstance(v, (list, dict)) else str(v)
+    return s if len(s) <= MAX_STR_LEN else s[:MAX_STR_LEN - 3] + "..."
+
+
+def _float(v) -> float | None:
+    if isinstance(v, bool):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _status(v) -> int | None:
+    if isinstance(v, bool):
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _label(meta: CaptureMeta, ip) -> str | None:
+    if not ip or not isinstance(ip, str):
+        return None
+    try:
+        return meta.label(ip)
+    except Exception:
+        return ip
+
+
+def _http_error(r: dict) -> bool:
+    status = _status(r.get("status_code"))
+    return status is None or status >= 400
+
+
+def _http_stats(http: list[dict], meta: CaptureMeta) -> dict | None:
+    if not http:
+        return None
+    methods, codes, uas, uris = Counter(), Counter(), Counter(), Counter()
+    hosts = defaultdict(lambda: {"requests": 0, "errors": 0})
+    for r in http:
+        if not isinstance(r, dict):
+            continue
+        status = _status(r.get("status_code"))
+        is_error = _http_error(r)
+        # Fall back to the server IP when the Host header is missing.
+        host = _str(r.get("host"), default=_label(meta, r.get("id.resp_h")) or "-")
+        methods[_str(r.get("method"))] += 1
+        codes["-" if status is None else str(status)] += 1
+        hosts[host]["requests"] += 1
+        hosts[host]["errors"] += is_error
+        uris[(host, _str(r.get("uri")))] += 1
+        if r.get("user_agent"):
+            uas[_str(r.get("user_agent"))] += 1
+    return {
+        "requests": sum(methods.values()),
+        "methods": dict(methods.most_common(CHART_TOP_N)),
+        "status_codes": dict(codes.most_common(CHART_TOP_N)),
+        "top_hosts": [{"host": h, **v} for h, v in
+                      sorted(hosts.items(), key=lambda kv: -kv[1]["requests"])[:CHART_TOP_N]],
+        "top_uris": [{"host": h, "uri": u, "requests": n} for (h, u), n in uris.most_common(CHART_TOP_N)],
+        "user_agents": dict(uas.most_common(SMALL_TOP_N)),
+    }
+
+
+def _tls_stats(ssl: list[dict]) -> dict | None:
+    if not ssl:
+        return None
+    versions, ciphers, validation = Counter(), Counter(), Counter()
+    established = Counter({"true": 0, "false": 0})
+    names = defaultdict(lambda: {"connections": 0, "failed": 0})
+    for r in ssl:
+        if not isinstance(r, dict):
+            continue
+        ok = r.get("established") is True
+        established["true" if ok else "false"] += 1
+        versions[_str(r.get("version"))] += 1
+        ciphers[_str(r.get("cipher"))] += 1
+        name = _str(r.get("server_name"), default="(no SNI)")
+        names[name]["connections"] += 1
+        names[name]["failed"] += not ok
+        if "validation_status" in r:
+            validation[_str(r.get("validation_status"))] += 1
+    return {
+        "connections": established["true"] + established["false"],
+        "versions": dict(versions.most_common()),
+        "established": dict(established),
+        "top_server_names": [{"name": n, **v} for n, v in
+                             sorted(names.items(), key=lambda kv: -kv[1]["connections"])[:CHART_TOP_N]],
+        "validation_status": dict(validation.most_common()),
+        "ciphers": dict(ciphers.most_common(SMALL_TOP_N)),
+    }
+
+
+def _notice_stats(notices: list[dict], meta: CaptureMeta) -> dict | None:
+    notices = [n for n in notices if isinstance(n, dict)]
+    if not notices:
+        return None
+    ordered = sorted(notices, key=lambda n: (_float(n.get("ts")) is None, _float(n.get("ts")) or 0))
+    return {
+        "counts": dict(Counter(_str(n.get("note")) for n in notices).most_common()),
+        "items": [{"t": _float(n.get("ts")), "note": _str(n.get("note")), "msg": _str(n.get("msg"), ""),
+                   "src": _label(meta, n.get("src") or n.get("id.orig_h")),
+                   "dst": _label(meta, n.get("dst") or n.get("id.resp_h"))}
+                  for n in ordered[:MAX_NOTICE_ITEMS]],
+    }
+
+
+def _http_text(h: dict) -> list[str]:
+    out = [f"\nHTTP requests: {h['requests']}, methods: " + json.dumps(h["methods"]),
+           "HTTP status codes ('-' = no response): " + json.dumps(h["status_codes"]),
+           "Top HTTP hosts (requests / errors = status>=400 or no response):"]
+    out += [f"  {x['host']}: {x['requests']} / {x['errors']}" for x in h["top_hosts"]]
+    out.append("Top HTTP URIs:")
+    out += [f"  {x['host']} {x['uri']} = {x['requests']}" for x in h["top_uris"][:SMALL_TOP_N]]
+    return out
+
+
+def _tls_text(t: dict) -> list[str]:
+    out = [f"\nTLS connections: {t['connections']}, versions: " + json.dumps(t["versions"]),
+           "TLS established: " + json.dumps(t["established"]),
+           "Top TLS server names (connections / not established):"]
+    out += [f"  {x['name']}: {x['connections']} / {x['failed']}" for x in t["top_server_names"]]
+    if t["validation_status"]:
+        out.append("TLS certificate validation_status: " + json.dumps(t["validation_status"]))
+    out.append("Top TLS ciphers: " + json.dumps(t["ciphers"]))
+    return out
+
+
+def _notice_text(n: dict) -> list[str]:
+    total = sum(n["counts"].values())
+    out = [f"\nZeek notices: {total}, by note: " + json.dumps(n["counts"]),
+           f"First {min(TOP_N, len(n['items']))} notices:"]
+    for x in n["items"][:TOP_N]:
+        ts = f"{x['t']:.3f}" if x["t"] is not None else "-"
+        out.append(f"  ts={ts} {x['note']}: {x['msg']} src={x['src'] or '-'} dst={x['dst'] or '-'}")
+    return out
+
+
 # ---------------------------------------------------------------- Zeek
 def zeek_summary(pcap: Path, workdir: Path, meta: CaptureMeta) -> tuple[str, dict]:
     if not shutil.which("zeek"):
@@ -143,6 +292,9 @@ def zeek_summary(pcap: Path, workdir: Path, meta: CaptureMeta) -> tuple[str, dic
     weird = _read_zeek_log(zdir / "weird.log")
     tunnels = _read_zeek_log(zdir / "tunnel.log")
     dns = _read_zeek_log(zdir / "dns.log")
+    http = _read_zeek_log(zdir / "http.log")
+    ssl = _read_zeek_log(zdir / "ssl.log")
+    notices = _read_zeek_log(zdir / "notice.log")
 
     states = Counter(c.get("conn_state") or "-" for c in conns)
     # t/T in history = retransmission
@@ -177,6 +329,16 @@ def zeek_summary(pcap: Path, workdir: Path, meta: CaptureMeta) -> tuple[str, dic
         if rtts:
             out.append(f"DNS RTT ort={statistics.mean(rtts)*1000:.1f}ms max={max(rtts)*1000:.1f}ms")
 
+    http_stats = _http_stats(http, meta)
+    tls_stats = _tls_stats(ssl)
+    notice_stats = _notice_stats(notices, meta)
+    if http_stats:
+        out += _http_text(http_stats)
+    if tls_stats:
+        out += _tls_text(tls_stats)
+    if notice_stats:
+        out += _notice_text(notice_stats)
+
     stats = {
         "timeline": _timeline(conns, dns),
         "totals": {
@@ -190,6 +352,11 @@ def zeek_summary(pcap: Path, workdir: Path, meta: CaptureMeta) -> tuple[str, dic
             "dns_errors": sum((d.get("rcode_name") in DNS_ERROR_RCODES) for d in dns),
             "dns_rtt_avg_ms": _ms(statistics.mean(rtts)) if rtts else None,
             "dns_rtt_p95_ms": _ms(_p95(rtts)) if rtts else None,
+            "http_requests": http_stats["requests"] if http_stats else 0,
+            "http_errors": sum(_http_error(r) for r in http if isinstance(r, dict)),
+            "tls_connections": tls_stats["connections"] if tls_stats else 0,
+            "tls_failed": tls_stats["established"]["false"] if tls_stats else 0,
+            "notices": sum(notice_stats["counts"].values()) if notice_stats else 0,
         },
         "conn_states": dict(states.most_common()),
         "protocols": dict(Counter(c.get("proto") or "-" for c in conns).most_common()),
@@ -199,6 +366,9 @@ def zeek_summary(pcap: Path, workdir: Path, meta: CaptureMeta) -> tuple[str, dic
         "weird": dict(Counter(w.get("name") for w in weird).most_common()),
         "tunnels": dict(Counter(t.get("tunnel_type") for t in tunnels).most_common()),
         "dns": _dns_stats(dns, meta) if dns else None,
+        "http": http_stats,
+        "tls": tls_stats,
+        "notices": notice_stats,
     }
     return "\n".join(out), stats
 

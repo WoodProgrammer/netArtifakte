@@ -24,6 +24,14 @@
     <span class="queue-pill" id="queuePill" title="Captures being processed / waiting in queue"><span class="dot"></span><span id="queueText">Queue</span></span>
     <a class="icon-btn" id="docsBtn" href="/docs" target="_blank" title="API docs"></a>
     <button class="icon-btn" id="themeBtn" type="button"></button>
+    <div class="user-menu" id="userMenu">
+      <button class="user-btn" id="userBtn" type="button" aria-haspopup="true" aria-expanded="false"></button>
+      <div class="menu hidden" id="userDropdown" role="menu">
+        <div class="menu-head" id="userMenuHead"></div>
+        <a href="#/account" role="menuitem">Account &amp; password</a>
+        <button type="button" role="menuitem" data-action="logout">Log out</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -40,6 +48,11 @@
         <input class="input" id="nName" name="name" required placeholder="e.g. DNS sometimes fails to resolve"></div>
       <div class="field"><label for="nDesc">Description</label>
         <input class="input" id="nDesc" name="description" placeholder="optional"></div>
+      <div class="field"><label for="nTeam">Team</label>
+        <select class="input" id="nTeam" name="team_id" required></select>
+        <div class="hint">Only members of this team (and admins) can see the analysis.</div></div>
+      <div class="field"><label class="check"><input type="checkbox" name="auto_approve">
+        <span>Auto-approve Claude's commands<small>Valid tshark commands Claude proposes run without asking. You can change this later in Settings.</small></span></label></div>
       <div class="field"><label for="nMeta">Default metadata</label>
         <textarea class="input" id="nMeta" name="default_metadata" rows="11"></textarea>
         <div class="hint">Optional. If filled in, you don't have to enter it again for every capture. If left empty, metadata is required for every capture.</div></div>

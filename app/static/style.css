@@ -269,3 +269,40 @@ dialog .card-foot { justify-content: flex-end; }
 .proposal .purpose { font-weight: 500; }
 .proposal .row-actions { display: flex; justify-content: flex-end; gap: 8px; }
 textarea.cmd, pre.cmdline { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
+
+/* ---------------------------------------------------------------- auth / users */
+body.auth .topbar, body.auth .sidebar { display: none; }
+body.auth .content { margin: 0 auto; padding: 12vh 16px 48px; max-width: 420px; }
+.login-card { padding: 28px; }
+.login-card .brand-mark { margin-bottom: 14px; }
+.login-card h1 { font-size: 20px; margin: 0 0 4px; }
+.login-card p { color: var(--text-2); margin: 0 0 20px; }
+.login-card .btn { width: 100%; justify-content: center; }
+.user-menu { position: relative; }
+.user-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--surface);
+  border-radius: 999px; padding: 3px 10px 3px 3px; cursor: pointer; font-size: 13px; }
+.user-btn:hover { background: var(--surface-2); }
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--primary-soft); color: var(--primary);
+  display: grid; place-items: center; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 8px 28px rgba(0,0,0,.16); padding: 6px; z-index: 40; }
+.menu a, .menu button { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; border: none;
+  background: none; color: var(--text); cursor: pointer; font-size: 13px; }
+.menu a:hover, .menu button:hover { background: var(--surface-2); text-decoration: none; }
+.menu-head { padding: 8px 10px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; font-size: 13px; }
+.menu-head .muted { font-size: 12px; }
+.team-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  background: var(--primary-soft); color: var(--text); white-space: nowrap; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.checks label { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; cursor: pointer; }
+.status.cancelled { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); } .status.cancelled svg { color: var(--muted); }
+
+/* ---------------------------------------------------------------- follow-up thread */
+.thread { display: flex; flex-direction: column; gap: 14px; }
+.q-bubble { align-self: flex-end; max-width: 80%; background: var(--primary-soft); border-radius: 12px 12px 2px 12px; padding: 10px 14px; white-space: pre-wrap; }
+.q-meta { align-self: flex-end; font-size: 12px; color: var(--muted); margin-top: -10px; }
+.a-bubble { border: 1px solid var(--border); border-radius: 12px 12px 12px 2px; padding: 14px 16px; background: var(--surface); }
+.a-bubble.pending { color: var(--text-2); display: flex; gap: 8px; align-items: center; }
+.a-bubble.pending svg { animation: spin 1.2s linear infinite; color: var(--primary); }
+.ask-form { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.ask-form .row-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }

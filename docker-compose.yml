@@ -14,6 +14,8 @@ services:
       DATA_DIR: /data
       WORKER_COUNT: ${WORKER_COUNT:-2}
       REPORT_LANGUAGE: ${REPORT_LANGUAGE:-English}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-500}
+      PCAP_RETENTION_DAYS: ${PCAP_RETENTION_DAYS:-0}
       # Local LLM running on the host (Ollama, LM Studio, ...): reachable via host.docker.internal
       LOCAL_LLM_URL: ${LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
     extra_hosts:

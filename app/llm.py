@@ -93,6 +93,36 @@ def build_prompt(meta: CaptureMeta, report: str, history: str = "") -> str:
 
 ProgressFn = Callable[[int], None]  # number of output characters generated so far
 
+# USD per million tokens: (input, output, cache read). Cache writes (5-minute TTL) cost 1.25 × input.
+# Used only for the estimated cost shown in the UI; override with MODEL_PRICES_JSON if prices change.
+MODEL_PRICES = {
+    "claude-opus-5-5": (4.0, 20.0, 0.20),
+    "claude-fable-5-2": (8.0, 40.0, 0.20),
+    "claude-sonnet-5-5": (2.0, 10.0, 0.10),
+    "claude-opus-5": (5.0, 25.0, 0.50),
+    "claude-opus-4-8": (5.0, 25.0, 0.50),
+}
+MODEL_PRICES.update({k: tuple(v) for k, v in json.loads(os.getenv("MODEL_PRICES_JSON", "{}")).items()})
+
+
+def usage_of(msg) -> dict:
+    """Token usage of one response plus its estimated cost (fallback turns are priced at the served model)."""
+    u = msg.usage
+    usage = {
+        "input_tokens": getattr(u, "input_tokens", 0) or 0,
+        "output_tokens": getattr(u, "output_tokens", 0) or 0,
+        "cache_read_input_tokens": getattr(u, "cache_read_input_tokens", 0) or 0,
+        "cache_creation_input_tokens": getattr(u, "cache_creation_input_tokens", 0) or 0,
+        "turns": 1,
+    }
+    price_in, price_out, price_cache_read = MODEL_PRICES.get(
+        getattr(msg, "model", None), MODEL_PRICES.get(os.getenv("CLAUDE_MODEL", "claude-opus-5-5"), MODEL_PRICES["claude-opus-5-5"]))
+    usage["cost_usd"] = round((usage["input_tokens"] * price_in
+                               + usage["output_tokens"] * price_out
+                               + usage["cache_read_input_tokens"] * price_cache_read
+                               + usage["cache_creation_input_tokens"] * price_in * 1.25) / 1_000_000, 6)
+    return usage
+
 
 def claude_turn(messages: list[dict], tools_enabled: bool, on_progress: ProgressFn | None = None,
                 system: str | None = None):
