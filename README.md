@@ -2,6 +2,8 @@
 
 Take a pcap + context (JSON) → summarize it with zeek & tshark → have an LLM (Claude / local) analyze it.
 
+
+<img src="./img/pcap-analyzer-demo.gif"></img>
 ## Setup
 ```bash
 brew install zeek wireshark      # zeek + tshark
