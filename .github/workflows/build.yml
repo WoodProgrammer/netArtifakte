@@ -1,0 +1,36 @@
+name: Build images
+
+# Builds the three images on every merge to main (and on PRs, as a check).
+# Nothing is pushed yet: flip `push` to true and add a registry login when ready.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: netsgo
+            context: .
+          - name: operator
+            context: operator
+          - name: capture
+            context: operator/capture
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          tags: netsgo-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
