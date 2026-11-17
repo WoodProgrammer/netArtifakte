@@ -92,12 +92,16 @@ func (r *PacketCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err := r.deleteJobs(ctx, pc); err != nil {
 			return ctrl.Result{}, err
 		}
+		// Patch (not Update) so only metadata is sent: a full Update re-serializes
+		// spec (e.g. duration "60s" -> "1m0s") and trips the spec-immutability rule.
+		base := pc.DeepCopy()
 		controllerutil.RemoveFinalizer(pc, finalizerName)
-		return ctrl.Result{}, r.Update(ctx, pc)
+		return ctrl.Result{}, r.Patch(ctx, pc, client.MergeFrom(base))
 	}
 	if !controllerutil.ContainsFinalizer(pc, finalizerName) {
+		base := pc.DeepCopy()
 		controllerutil.AddFinalizer(pc, finalizerName)
-		if err := r.Update(ctx, pc); err != nil {
+		if err := r.Patch(ctx, pc, client.MergeFrom(base)); err != nil {
 			return ctrl.Result{}, err
 		}
 	}

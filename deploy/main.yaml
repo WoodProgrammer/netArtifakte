@@ -1,0 +1,119 @@
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pcap-analyzer-config
+  labels:
+    app: pcap-analyzer
+data:
+  DATA_DIR: "/data"
+  WORKER_COUNT: "2"
+  REPORT_LANGUAGE: "English"
+  MAX_UPLOAD_MB: "500"
+  PCAP_RETENTION_DAYS: "0"
+  LOCAL_LLM_URL: "http://ollama:11434/v1"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pcap-analyzer-secrets
+  labels:
+    app: pcap-analyzer
+type: Opaque
+stringData:
+  ANTHROPIC_API_KEY: "<ANTHROPIC_API_KEY>"
+  ADMIN_USERNAME: "<ADMIN_USERNAME>"
+  ADMIN_PASSWORD: "<ADMIN_PASSWORD>"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pcap-analyzer-data
+  labels:
+    app: pcap-analyzer
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # storageClassName: standard
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pcap-analyzer
+  labels:
+    app: pcap-analyzer
+spec:
+  replicas: 1                 # SQLite + RWO volume => tek replika
+  strategy:
+    type: Recreate            # Eski pod volume'u bırakmadan yenisi başlamasın
+  selector:
+    matchLabels:
+      app: pcap-analyzer
+  template:
+    metadata:
+      labels:
+        app: pcap-analyzer
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000         # /data, uid/gid 1000 tarafından yazılabilir olsun
+      # LLM host üzerinde çalışıyorsa host.docker.internal adını koruyabilirsiniz:
+      # hostAliases:
+      #   - ip: "192.168.1.10"      # host / node IP'si
+      #     hostnames: ["host.docker.internal"]
+      containers:
+        - name: pcap-analyzer
+          image: emirozbir/netsgo-analyzer:latest   # registry'ye push edin: <registry>/pcap-analyzer:<tag>
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: pcap-analyzer-config
+            - secretRef:
+                name: pcap-analyzer-secrets
+                optional: true          # env_file required: false karşılığı
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pcap-analyzer-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pcap-analyzer
+  labels:
+    app: pcap-analyzer
+spec:
+  type: ClusterIP
+  selector:
+    app: pcap-analyzer
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
